@@ -4,7 +4,7 @@ This project aims to develop an AI model that can detect diabetic retinopathy us
 
 ## 👁 Dataset
 
-We use the **Messidor-2** dataset, which is publicly available **for research and educational purposes only**.
+I use the **Messidor-2** dataset, which is publicly available **for research and educational purposes only**.
 
 You can request access and download it here:  
 👉 https://www.adcis.net/en/third-party/messidor/
