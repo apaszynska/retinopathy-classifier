@@ -1,0 +1,74 @@
+# To create this environment: conda env create -f environment.yml
+# To activate this environment: conda activate hf_pytorch_env
+name: hf_pytorch_env
+channels:
+  - pytorch
+  - conda-forge
+  - anaconda # Added for broader compatibility on Mac
+  - defaults
+dependencies:
+  # --- Core ---
+  - python=3.10
+  - pip
+
+  # --- PyTorch for Mac ---
+  - pytorch
+  - torchvision
+  - cpuonly
+
+  # --- Hugging Face & Machine Learning ---
+  - transformers=4.28.1
+  - tokenizers=0.13.3
+  - datasets=2.12.0
+  - huggingface_hub=0.33.1
+  - scikit-learn=1.7.0
+  - grad-cam=1.5.5
+  - ttach=0.0.3
+
+  # --- Data Handling & Visualization ---
+  - pandas=2.3.0
+  - pyarrow=13.0.0
+  - numpy=1.26.4
+  - altair=5.5.0
+  - matplotlib=3.10.3
+  - seaborn=0.13.2
+  - plotly=6.2.0
+  - pillow=11.2.1
+  - opencv
+
+  # --- Streamlit & Web App ---
+  - streamlit=1.46.1
+  - aiohttp
+  - blinker=1.9.0
+  - cachetools
+  - click
+  - protobuf
+  - pydeck=0.9.1
+  - toml
+  - tornado
+  - watchdog
+
+  # --- General Utilities & Backend ---
+  - tqdm
+  - requests
+  - fsspec
+  - filelock
+  - pyyaml
+  - scipy=1.15.2
+  - statsmodels=0.14.4
+  - ipykernel # For Jupyter notebooks
+  - jupyter_client
+  - jupyter_core
+  - ipython
+
+  # --- Pip dependencies (if any from your list were from pip) ---
+  - pip:
+    - jsonschema
+    - referencing
+    - jsonschema-specifications
+    - rpds-py
+    - smmap
+    - gitdb
+    - gitpython
+    - narwhals
+    - tenacity
