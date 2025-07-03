@@ -1,5 +1,4 @@
 # utils.py
-
 import torch
 from torch.utils.data import Dataset
 from transformers import ViTForImageClassification, AutoImageProcessor
@@ -14,40 +13,26 @@ from pytorch_grad_cam.utils.image import show_cam_on_image
 import plotly.graph_objects as go
 from pytorch_grad_cam import LayerCAM
 
-
-
-# --- Funkcje dla Eksperymentu PyTorch ViT ---
-
+# --- Pozostałe funkcje bez zmian ---
 def load_paths_and_labels(config):
-    """
-    Wyszukuje ścieżki do obrazów i przypisuje im etykiety.
-    """
     data_dir = config["data_dir"]
     class_to_label = config["class_to_label"]
-
     extensions = ['*.tif', '*.png', '*.jpg', '*.jpeg']
     image_files = []
     for ext in extensions:
         image_files.extend(data_dir.rglob(ext))
-        
     tif_files = [str(p) for p in image_files]
     labels = [class_to_label[Path(p).parent.name] for p in tif_files]
-    
     print(f"Znaleziono {len(tif_files)} obrazów.")
     return tif_files, labels
 
 class RetinopathyDataset(Dataset):
-    """
-    Niestandardowy Dataset dla PyTorch do wczytywania obrazów siatkówki.
-    """
     def __init__(self, paths, labels, processor):
         self.paths = paths
         self.labels = labels
         self.processor = processor
-
     def __len__(self):
         return len(self.paths)
-
     def __getitem__(self, idx):
         image = Image.open(self.paths[idx]).convert("RGB")
         inputs = self.processor(images=image, return_tensors="pt")
@@ -56,9 +41,6 @@ class RetinopathyDataset(Dataset):
         return {"pixel_values": pixel_values, "labels": label}
 
 def create_pytorch_vit_model(config, class_weights_tensor=None):
-    """
-    Tworzy model ViT w wersji dla PyTorch i opcjonalnie dołącza wagi klas.
-    """
     model = ViTForImageClassification.from_pretrained(
         config["hf_model_name"],
         num_labels=config["num_classes"],
@@ -66,27 +48,17 @@ def create_pytorch_vit_model(config, class_weights_tensor=None):
         label2id=config["class_to_label"],
         ignore_mismatched_sizes=True
     )
-    
     if class_weights_tensor is not None:
         model.class_weights = class_weights_tensor
-    
     return model
 
 def compute_metrics(eval_pred):
-    """
-    Funkcja do obliczania metryk podczas ewaluacji, wymagana przez Trainer.
-    """
     predictions, labels = eval_pred
     preds = np.argmax(predictions, axis=1)
     acc = accuracy_score(labels, preds)
     return {"accuracy": acc}
 
 def create_probability_bar_chart(probabilities):
-    """
-    Twrzy estetyczny, poziomy wykres słupkowy w Plotly,
-    z ustaloną, logiczną kolejnością klas.
-    """
-    # === POPRAWKA: Zaktualizowano listy klas do zakresu 0-3 ===
     display_order = ['grade_0', 'grade_1', 'grade_2', 'grade_3']
     display_names = {
         "grade_0": "No Retinopathy",
@@ -94,19 +66,14 @@ def create_probability_bar_chart(probabilities):
         "grade_2": "Grade 2",
         "grade_3": "Grade 3"
     }
-    # ==========================================================
-    
     final_class_names = []
     final_probs_values = []
-    
     for class_key in display_order:
         if class_key in probabilities:
             name = display_names.get(class_key, class_key)
             prob = probabilities[class_key] * 100
-            
             final_class_names.append(name)
             final_probs_values.append(prob)
-    
     fig = go.Figure(go.Bar(
         x=final_probs_values,
         y=final_class_names,
@@ -116,7 +83,6 @@ def create_probability_bar_chart(probabilities):
         marker_color='rgba(26, 118, 255, 0.7)',
         insidetextanchor='middle'
     ))
-
     fig.update_layout(
         title_text='Detailed Probabilities',
         title_font_size=20,
@@ -139,10 +105,11 @@ def create_probability_bar_chart(probabilities):
     )
     return fig
 
-def generate_grad_cam(model, image_tensor, original_pil_image):
+# --- ZMODYFIKOWANA FUNKCJA generate_grad_cam ---
+def generate_grad_cam(model, image_tensor, original_pil_image, top_k_percent=10):
     """
-    Generates a heatmap using EigenCAM. Transparency is controlled
-    by the 'image_weight' parameter only.
+    Generuje heatmapę, filtrując ją, aby pokazać tylko najważniejsze obszary
+    zgodnie z podanym procentem (top_k_percent).
     """
     def reshape_transform(tensor, height=14, width=14):
         result = tensor[:, 1:, :].reshape(tensor.size(0), height, width, tensor.size(2))
@@ -159,11 +126,11 @@ def generate_grad_cam(model, image_tensor, original_pil_image):
     if image_tensor.ndim == 3:
         image_tensor = image_tensor.unsqueeze(0)
 
-    # We will continue to use the masking technique
     img_for_mask = np.array(original_pil_image.convert("L"))
     _, mask = cv2.threshold(img_for_mask, 15, 255, cv2.THRESH_BINARY)
     mask_tensor = torch.from_numpy(mask).to(image_tensor.device).float() / 255.0
     mask_tensor = mask_tensor.unsqueeze(0).unsqueeze(0)
+    mask_tensor = torch.nn.functional.interpolate(mask_tensor, size=image_tensor.shape[-2:], mode='bilinear', align_corners=False)
     masked_input_tensor = image_tensor * mask_tensor
 
     wrapped_model = HuggingFaceModelWrapper(model)
@@ -177,8 +144,13 @@ def generate_grad_cam(model, image_tensor, original_pil_image):
 
     grayscale_cam = cam(input_tensor=masked_input_tensor, targets=None)
     grayscale_cam = grayscale_cam[0, :]
-
-    # The problematic np.clip line has been removed.
+    
+    # --- ZMIANA: Użycie 'top_k_percent' do dynamicznego filtrowania ---
+    # Oblicz próg na podstawie wartości z suwaka (np. dla 10% bierzemy 90 percentyl).
+    # Jeśli suwak jest na 100%, próg będzie 0, co pokaże całą mapę.
+    if top_k_percent < 100:
+        threshold = np.percentile(grayscale_cam, 100 - top_k_percent)
+        grayscale_cam[grayscale_cam < threshold] = 0
     
     rgb_img_numpy = np.array(original_pil_image.convert("RGB"), dtype=np.float32) / 255.0
 
@@ -186,9 +158,7 @@ def generate_grad_cam(model, image_tensor, original_pil_image):
         rgb_img_numpy,
         mask=grayscale_cam,
         use_rgb=True,
-        # You can now control the transparency ONLY with this value.
-        # Try a value like 0.5 for more color, or 0.7 for more transparency.
-        image_weight=0.8
+        image_weight=0.6
     )
 
     final_image = Image.fromarray(visualization)
