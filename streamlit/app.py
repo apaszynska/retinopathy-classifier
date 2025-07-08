@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 import streamlit as st
@@ -88,8 +89,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Konfiguracja Ścieżek i Aplikacji ---
-home_dir = Path.home()
-project_dir = home_dir / 'Documents' / "retinopathy-classifier"
+project_dir = Path(os.path.abspath(os.path.join(os.getcwd(), "..")))
+
 if str(project_dir) not in sys.path:
     sys.path.append(str(project_dir))
 
@@ -100,7 +101,7 @@ except ImportError:
     st.stop()
 
 cfg = config.get_pytorch_vit_config()
-MODEL_PATH = project_dir / "models_pytorch_vit" / "vit_v3_advaug_0.2split_20epoch" / "final_model"
+MODEL_PATH = Path(os.path.join(project_dir, "models_pytorch_vit", "vit_v3_advaug_0.2split_20epoch", "final_model"))
 CLASS_NAMES = cfg['class_names']
 
 # --- Logika Aplikacji ---
